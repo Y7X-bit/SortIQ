@@ -1,15 +1,24 @@
 import os
 import shutil
+import json
+import customtkinter as ctk
 from pathlib import Path
-import logging
+from tkinter import filedialog, messagebox
+from datetime import datetime, timedelta
 from collections import defaultdict
 
-class FileOrganizer:
-    def __init__(self, source_directory=None):
-        # Default to Downloads folder if no directory specified
-        self.source_directory = source_directory or str(Path.home() / "Downloads")
-        
-        # Define file type categories and their extensions
+SETTINGS_FILE = "config.json"
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("dark-blue")
+
+class SortIQ(ctk.CTk):
+    def __init__(self):
+        super().__init__()
+        self.title("🧠 SortIQ")
+        self.geometry("750x500")
+        self.configure(bg="#000000")
+        self.resizable(False, False)
+
         self.file_categories = {
             'Documents': ['.pdf', '.doc', '.docx', '.txt', '.rtf', '.odt', '.pages'],
             'Images': ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg', '.webp', '.ico'],
@@ -22,196 +31,171 @@ class FileOrganizer:
             'Code': ['.py', '.js', '.html', '.css', '.java', '.cpp', '.c', '.php', '.rb', '.go'],
             'Ebooks': ['.epub', '.mobi', '.azw', '.azw3']
         }
-        
-        # Setup logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler('file_organizer.log'),
-                logging.StreamHandler()
-            ]
-        )
-        self.logger = logging.getLogger(__name__)
 
-    def get_file_category(self, file_extension):
-        """Determine the category of a file based on its extension."""
-        file_extension = file_extension.lower()
-        for category, extensions in self.file_categories.items():
-            if file_extension in extensions:
-                return category
-        return 'Others'  # Default category for unrecognized extensions
+        self.load_settings()
+        self.create_widgets()
 
-    def create_directories(self):
-        """Create category directories if they don't exist."""
-        categories = list(self.file_categories.keys()) + ['Others']
-        created_dirs = []
-        
-        for category in categories:
-            category_path = os.path.join(self.source_directory, category)
-            if not os.path.exists(category_path):
-                os.makedirs(category_path)
-                created_dirs.append(category)
-                self.logger.info(f"Created directory: {category}")
-        
-        return created_dirs
+    def load_settings(self):
+        if os.path.exists(SETTINGS_FILE):
+            with open(SETTINGS_FILE, 'r') as f:
+                self.settings = json.load(f)
+        else:
+            self.settings = {"last_folder": "", "auto_clean": True, "age_filter": 0}
 
-    def organize_files(self, dry_run=False):
-        """Organize files in the source directory."""
-        if not os.path.exists(self.source_directory):
-            self.logger.error(f"Source directory does not exist: {self.source_directory}")
-            return False
+    def save_settings(self):
+        with open(SETTINGS_FILE, 'w') as f:
+            json.dump(self.settings, f)
 
-        # Get all files in the source directory (excluding subdirectories)
-        files = [f for f in os.listdir(self.source_directory) 
-                if os.path.isfile(os.path.join(self.source_directory, f))]
-        
-        if not files:
-            self.logger.info("No files found to organize.")
+    def create_widgets(self):
+        red = "#ff0000"
+        white = "#ffffff"
+        radius = 50
+
+        self.main_frame = ctk.CTkFrame(self, fg_color="#000000")
+        self.main_frame.pack(pady=20, padx=20, fill="both", expand=True)
+
+        self.label = ctk.CTkLabel(self.main_frame, text="Select Folder to Organize", font=("Segoe UI", 22), text_color=white)
+        self.label.pack(pady=(0, 15))
+
+        self.folder_btn = ctk.CTkButton(self.main_frame, text="📂 Browse", text_color=white, fg_color="transparent", border_color=red, border_width=2, corner_radius=radius, command=self.select_folder, height=50, width=250)
+        self.folder_btn.pack(pady=(10, 20))
+
+        self.auto_clean_var = ctk.BooleanVar(value=self.settings.get("auto_clean", True))
+        self.clean_checkbox = ctk.CTkCheckBox(self.main_frame, text="🧼 Auto-delete Empty Folders", variable=self.auto_clean_var, checkbox_height=20, checkbox_width=20, border_color=red, text_color=white)
+        self.clean_checkbox.pack(pady=(0, 20))
+
+        self.age_label = ctk.CTkLabel(self.main_frame, text=f"Filter Files Older Than {int(self.settings.get('age_filter', 0))} Days", font=("Segoe UI", 14), text_color=white)
+        self.age_label.pack(pady=10)
+
+        self.age_slider = ctk.CTkSlider(self.main_frame, from_=0, to=30, number_of_steps=30, command=self.update_age_label, progress_color=red)
+        self.age_slider.set(self.settings.get("age_filter", 0))
+        self.age_slider.pack(pady=5, fill="x", padx=50)
+
+        self.button_row = ctk.CTkFrame(self.main_frame, fg_color="#000000")
+        self.button_row.pack(pady=25)
+
+        self.preview_btn = ctk.CTkButton(self.button_row, text="🔎 Preview", text_color=white, fg_color="transparent", border_color=red, border_width=2, corner_radius=radius, command=self.preview_files, height=50, width=180)
+        self.preview_btn.grid(row=0, column=0, padx=20)
+
+        self.organize_btn = ctk.CTkButton(self.button_row, text="🧹 Organize", text_color=white, fg_color="transparent", border_color=red, border_width=2, corner_radius=radius, command=self.organize_files, height=50, width=180)
+        self.organize_btn.grid(row=0, column=1, padx=20)
+
+        self.undo_btn = ctk.CTkButton(self.button_row, text="↩️ Undo", text_color=white, fg_color="transparent", border_color=red, border_width=2, corner_radius=radius, command=self.undo_organization, height=50, width=180)
+        self.undo_btn.grid(row=0, column=2, padx=20)
+
+        self.status = ctk.CTkLabel(self.main_frame, text="", font=("Segoe UI", 14), text_color=white)
+        self.status.pack(pady=10)
+
+        self.branding = ctk.CTkLabel(self.main_frame, text="🔎 Powered by Y7X 💗", font=("Segoe UI", 13), text_color=white)
+        self.branding.pack(pady=5)
+
+        self.selected_folder = self.settings.get("last_folder", "")
+
+    def update_age_label(self, value):
+        self.age_label.configure(text=f"Filter Files Older Than {int(float(value))} Days")
+
+    def select_folder(self):
+        folder = filedialog.askdirectory()
+        if folder:
+            self.selected_folder = folder
+            self.settings["last_folder"] = folder
+            self.save_settings()
+            self.status.configure(text=f"Selected: {folder}")
+
+    def get_category(self, ext):
+        ext = ext.lower()
+        for cat, exts in self.file_categories.items():
+            if ext in exts:
+                return cat
+        return 'Others'
+
+    def is_old_enough(self, path):
+        age_days = int(self.age_slider.get())
+        if age_days == 0:
             return True
+        cutoff = datetime.now() - timedelta(days=age_days)
+        return datetime.fromtimestamp(os.path.getmtime(path)) < cutoff
 
-        # Create necessary directories
-        if not dry_run:
-            self.create_directories()
+    def preview_files(self):
+        if not self.selected_folder:
+            messagebox.showwarning("No Folder", "Select a folder first!")
+            return
 
-        # Statistics tracking
-        stats = defaultdict(int)
-        moved_files = []
-        errors = []
+        moved = defaultdict(int)
+        for file in os.listdir(self.selected_folder):
+            full_path = os.path.join(self.selected_folder, file)
+            if os.path.isfile(full_path) and not file.startswith(('.', '~')) and self.is_old_enough(full_path):
+                ext = Path(file).suffix
+                cat = self.get_category(ext)
+                moved[cat] += 1
 
-        for filename in files:
-            try:
-                file_path = os.path.join(self.source_directory, filename)
-                file_extension = Path(filename).suffix
-                
-                # Skip hidden files and system files
-                if filename.startswith('.') or filename.startswith('~'):
-                    continue
-                
-                category = self.get_file_category(file_extension)
-                destination_dir = os.path.join(self.source_directory, category)
-                destination_path = os.path.join(destination_dir, filename)
-                
-                # Handle file name conflicts
-                counter = 1
-                original_destination = destination_path
-                while os.path.exists(destination_path):
-                    name, ext = os.path.splitext(filename)
-                    new_filename = f"{name}_{counter}{ext}"
-                    destination_path = os.path.join(destination_dir, new_filename)
-                    counter += 1
-                
-                if dry_run:
-                    self.logger.info(f"[DRY RUN] Would move: {filename} -> {category}/")
-                else:
-                    shutil.move(file_path, destination_path)
-                    moved_files.append((filename, category))
-                    self.logger.info(f"Moved: {filename} -> {category}/")
-                
-                stats[category] += 1
-                
-            except Exception as e:
-                error_msg = f"Error processing {filename}: {str(e)}"
-                errors.append(error_msg)
-                self.logger.error(error_msg)
+        msg = "Preview:\n" + "\n".join([f"{cat}: {cnt} file(s)" for cat, cnt in moved.items()])
+        messagebox.showinfo("Preview", msg if moved else "No files to organize with current filter.")
 
-        # Print summary
-        self.print_summary(stats, moved_files, errors, dry_run)
-        return len(errors) == 0
+    def organize_files(self):
+        if not self.selected_folder:
+            messagebox.showwarning("No Folder", "Select a folder first!")
+            return
 
-    def print_summary(self, stats, moved_files, errors, dry_run=False):
-        """Print a summary of the organization process."""
-        action = "Would be moved" if dry_run else "Moved"
-        
-        print("\n" + "="*50)
-        print(f"FILE ORGANIZATION SUMMARY {'(DRY RUN)' if dry_run else ''}")
-        print("="*50)
-        
-        total_files = sum(stats.values())
-        print(f"Total files processed: {total_files}")
-        
-        if stats:
-            print("\nFiles by category:")
-            for category, count in sorted(stats.items()):
-                print(f"  {category}: {count} files")
-        
-        if errors:
-            print(f"\nErrors encountered: {len(errors)}")
-            for error in errors[:5]:  # Show first 5 errors
-                print(f"  - {error}")
-            if len(errors) > 5:
-                print(f"  ... and {len(errors) - 5} more errors")
-        
-        print("="*50)
+        files = [f for f in os.listdir(self.selected_folder)
+                 if os.path.isfile(os.path.join(self.selected_folder, f)) and not f.startswith(('.', '~'))]
+
+        moved = 0
+        for file in files:
+            src = os.path.join(self.selected_folder, file)
+            if not self.is_old_enough(src):
+                continue
+            ext = Path(file).suffix
+            cat = self.get_category(ext)
+            dest_dir = os.path.join(self.selected_folder, cat)
+            os.makedirs(dest_dir, exist_ok=True)
+
+            base, ext = os.path.splitext(file)
+            new_name = f"{base}_{datetime.now().strftime('%H%M%S')}{ext}"
+            dest_path = os.path.join(dest_dir, new_name if os.path.exists(os.path.join(dest_dir, file)) else file)
+
+            shutil.move(src, dest_path)
+            moved += 1
+
+        if self.auto_clean_var.get():
+            for cat in list(self.file_categories.keys()) + ['Others']:
+                dir_path = os.path.join(self.selected_folder, cat)
+                if os.path.exists(dir_path) and not os.listdir(dir_path):
+                    os.rmdir(dir_path)
+
+        self.status.configure(text=f"✅ Organized {moved} files")
+        messagebox.showinfo("Done", f"Organized {moved} files successfully!")
+        self.settings["auto_clean"] = self.auto_clean_var.get()
+        self.settings["age_filter"] = int(self.age_slider.get())
+        self.save_settings()
 
     def undo_organization(self):
-        """Move all files back to the root directory (undo organization)."""
-        categories = list(self.file_categories.keys()) + ['Others']
-        moved_count = 0
-        
-        for category in categories:
-            category_path = os.path.join(self.source_directory, category)
-            if os.path.exists(category_path) and os.path.isdir(category_path):
-                files = os.listdir(category_path)
-                for filename in files:
-                    try:
-                        source = os.path.join(category_path, filename)
-                        destination = os.path.join(self.source_directory, filename)
-                        
-                        # Handle conflicts
-                        counter = 1
-                        while os.path.exists(destination):
-                            name, ext = os.path.splitext(filename)
-                            new_filename = f"{name}_restored_{counter}{ext}"
-                            destination = os.path.join(self.source_directory, new_filename)
-                            counter += 1
-                        
-                        shutil.move(source, destination)
-                        moved_count += 1
-                        self.logger.info(f"Restored: {filename}")
-                        
-                    except Exception as e:
-                        self.logger.error(f"Error restoring {filename}: {str(e)}")
-                
-                # Remove empty directory
+        if not self.selected_folder:
+            messagebox.showwarning("No Folder", "Select a folder first!")
+            return
+
+        restored = 0
+        for cat in list(self.file_categories.keys()) + ['Others']:
+            path = os.path.join(self.selected_folder, cat)
+            if os.path.isdir(path):
+                for file in os.listdir(path):
+                    src = os.path.join(path, file)
+                    dest = os.path.join(self.selected_folder, file)
+                    base, ext = os.path.splitext(dest)
+                    counter = 1
+                    while os.path.exists(dest):
+                        dest = f"{base}_restored_{counter}{ext}"
+                        counter += 1
+                    shutil.move(src, dest)
+                    restored += 1
                 try:
-                    if not os.listdir(category_path):
-                        os.rmdir(category_path)
-                        self.logger.info(f"Removed empty directory: {category}")
+                    os.rmdir(path)
                 except:
                     pass
-        
-        print(f"Restored {moved_count} files to the root directory.")
 
-def main():
-    """Main function with command-line interface."""
-    import argparse
-    
-    parser = argparse.ArgumentParser(description="Organize files by extension into categories")
-    parser.add_argument("--directory", "-d", help="Directory to organize (default: Downloads)")
-    parser.add_argument("--dry-run", action="store_true", help="Show what would be done without actually moving files")
-    parser.add_argument("--undo", action="store_true", help="Undo previous organization")
-    
-    args = parser.parse_args()
-    
-    # Create organizer instance
-    organizer = FileOrganizer(args.directory)
-    
-    print(f"File Organizer - Target Directory: {organizer.source_directory}")
-    
-    if args.undo:
-        print("Undoing previous organization...")
-        organizer.undo_organization()
-    elif args.dry_run:
-        print("Running in DRY RUN mode (no files will be moved)...")
-        organizer.organize_files(dry_run=True)
-    else:
-        print("Organizing files...")
-        success = organizer.organize_files()
-        if success:
-            print("Organization completed successfully!")
-        else:
-            print("Organization completed with some errors. Check the log for details.")
+        self.status.configure(text=f"↩️ Restored {restored} files")
+        messagebox.showinfo("Undo", f"Restored {restored} files to main folder")
 
 if __name__ == "__main__":
-    main()
+    app = SortIQ()
+    app.mainloop()

@@ -1,16 +1,38 @@
-# FileOrganizerPro 🔥
+<div align="center">
 
-A smart Python script that organizes your files into folders based on their type.
+# 🧠 SortIQ
 
-## Features
-- Categorizes files by extension
-- Undo support
-- Dry-run preview
-- CLI powered
+**Tidy up your messy folders with one click.**  
+An intelligent, sleek file organizer with red-hot visuals and smart automation.
 
-## Usage
-python3 file_organizer.py
-python3 file_organizer.py -d /path/to/folder
-python3 file_organizer.py --dry-run
-python3 file_organizer.py --undo
+<img src="assets/1.png" alt="SortIQ UI" width="600"/>
 
+</div>
+
+---
+
+## 🚀 Features
+
+- 📂 **One-Click Folder Organization**
+- 🔍 **Preview before sorting**
+- ↩️ **Undo any operation**
+- 🧼 **Auto-delete Empty Folders**
+- ⏳ **Filter files by Age (e.g., only older than 7 days)**
+- 🧠 **Smart categorization based on file extensions**
+- 🎨 **Sleek AMOLED UI with pitch-black background and red accents**
+- 💾 **Remembers your last used folder and settings**
+
+---
+
+## 🖥️ Built With
+
+- Python 3.x 🐍  
+- `customtkinter` for modern GUI  
+- Standard libraries: `os`, `shutil`, `pathlib`, `json`, `datetime`, `tkinter`
+
+---
+
+## 📸 Screenshot
+
+> The vibe? Clean. Dark. Glowing.  
+> UI Preview ⬇️
