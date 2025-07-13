@@ -1,9 +1,11 @@
 <div align="center">
 
 # 🧠 SortIQ
+**🎯 One click. Sorted. Welcome SortIQ.**
 
-**Tidy up your messy folders with one click.**  
+Tidy up your messy folders with one click.
 An intelligent, sleek file organizer with red-hot visuals and smart automation.
+Branded with 💗 by [Y7X-bit](https://github.com/Y7X-bit)
 
 <img src="assets/1.png" alt="SortIQ UI" width="600"/>
 
@@ -11,7 +13,7 @@ An intelligent, sleek file organizer with red-hot visuals and smart automation.
 
 ---
 
-## 🚀 Features
+## 🌟 Features at a Glance
 
 - 📂 **One-Click Folder Organization**
 - 🔍 **Preview before sorting**
@@ -24,8 +26,12 @@ An intelligent, sleek file organizer with red-hot visuals and smart automation.
 
 ---
 
-## 🖥️ Built With
+## 🖥️ Installation
 
-- Python 3.x 🐍  
-- `customtkinter` for modern GUI  
-- Standard libraries: `os`, `shutil`, `pathlib`, `json`, `datetime`, `tkinter`
+> Python 3.9 or later required
+
+```bash
+git clone https://github.com/Y7X-bit/SortIQ.git
+cd SortIQ
+pip install -r requirements.txt
+python SortIQ.py
